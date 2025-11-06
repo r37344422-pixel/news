@@ -193,28 +193,42 @@
 }
 
 
-    const parseRSS = (xmlText, sourceName) => {
-      const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
-      let items = [...doc.querySelectorAll('item')].map(n => ({
-        title: n.querySelector('title')?.textContent?.trim() || '',
-        link: n.querySelector('link')?.textContent?.trim() || n.querySelector('guid')?.textContent?.trim() || '#',
-        pubDate: new Date(n.querySelector('pubDate')?.textContent || n.querySelector('dc\:date')?.textContent || Date.now()).getTime(),
-        source: sourceName,
-        image: extractImage(n)
-      }));
-      if (!items.length) {
-        items = [...doc.querySelectorAll('entry')].map(n => ({
-          title: n.querySelector('title')?.textContent?.trim() || '',
-          link: n.querySelector('link')?.getAttribute('href') || '#',
-          pubDate: new Date(n.querySelector('updated')?.textContent || n.querySelector('published')?.textContent || Date.now()).getTime(),
-          source: sourceName,
-          image: extractImage(n)
-        }));
-      }
-      // Attach ids
-      items.forEach(it => { it.id = hashId((it.title||'') + '|' + (it.link||'')); });
-      return items;
-    };
+const parseRSS = (xmlText, sourceName) => {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+
+  let items = [...doc.querySelectorAll("item")].map(n => ({
+    title: n.querySelector("title")?.textContent?.trim() || "",
+    link: n.querySelector("link")?.textContent?.trim() || "",
+    pubDate: new Date(n.querySelector("pubDate")?.textContent || Date.now()).getTime(),
+    source: sourceName,
+    image: extractImage(n),
+
+    // ✅ FIXED FULL ARTICLE SUMMARY
+    summary:
+      (n.getElementsByTagName("content:encoded")[0]?.textContent?.trim() ||
+      n.getElementsByTagName("description")[0]?.textContent?.trim() ||
+      "")
+  }));
+
+  // ✅ If no <item>, try <entry> (ATOM feeds)
+  if (!items.length) {
+    items = [...doc.querySelectorAll("entry")].map(n => ({
+      title: n.querySelector("title")?.textContent?.trim() || "",
+      link: n.querySelector("link")?.getAttribute("href") || "",
+      pubDate: new Date(n.querySelector("updated")?.textContent || Date.now()).getTime(),
+      source: sourceName,
+      image: extractImage(n),
+
+      summary:
+        (n.getElementsByTagName("content")[0]?.textContent?.trim() ||
+        n.getElementsByTagName("summary")[0]?.textContent?.trim() ||
+        "")
+    }));
+  }
+
+  return items.filter(i => i.title && i.link);
+};
+
 
     const dedupe = (arr) => {
       const seen = new Set();
