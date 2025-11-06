@@ -1,20 +1,14 @@
-import * as admin from "firebase-admin";
-
-let app;
+import admin from "firebase-admin";
 
 if (!admin.apps.length) {
-  // Decode base64 service account JSON
-  const serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, "base64").toString("utf8")
-  );
-
-  app = admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL:
-      "https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app",
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: "trending-news-8d416",
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    }),
+    databaseURL: "https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app"
   });
-} else {
-  app = admin.app();
 }
 
 const db = admin.database();
@@ -44,7 +38,7 @@ export default async function handler(req, res) {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>${baseUrl}</loc>
+    <loc>${baseUrl}/</loc>
     <changefreq>hourly</changefreq>
     <priority>1.0</priority>
   </url>
@@ -54,7 +48,7 @@ export default async function handler(req, res) {
     res.setHeader("Content-Type", "application/xml");
     res.status(200).send(xml);
   } catch (err) {
-    console.error("❌ Sitemap error:", err);
+    console.error("❌ Sitemap generation error:", err);
     res.status(500).send("Error generating sitemap");
   }
 }
