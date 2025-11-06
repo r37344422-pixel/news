@@ -147,24 +147,51 @@
     const escapeHtml = (str) => (str || '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
     // Extract image from common RSS fields
-    function extractImage(node) {
-      // media:content
-      const media = node.querySelector('media\:content, content');
-      const url = media?.getAttribute?.('url');
-      if (url) return url;
-      // enclosure
-      const enc = node.querySelector('enclosure[url][type^="image/"]');
-      if (enc) return enc.getAttribute('url');
-      // content:encoded <img>
-      const html = node.querySelector('content\:encoded')?.textContent || '';
-      const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-      if (m) return m[1];
-      // description <img>
-      const desc = node.querySelector('description')?.textContent || '';
-      const m2 = desc.match(/<img[^>]+src=["']([^"']+)["']/i);
-      if (m2) return m2[1];
-      return '';
-    }
+    function extractImage(item) {
+  // 1) Try <media:content>
+  let media = item.getElementsByTagName("media:content");
+  if (media && media.length > 0 && media[0].getAttribute("url")) {
+    return media[0].getAttribute("url");
+  }
+
+  // 2) Try <enclosure>
+  let enc = item.getElementsByTagName("enclosure");
+  if (enc && enc.length > 0 && enc[0].getAttribute("url")) {
+    return enc[0].getAttribute("url");
+  }
+
+  // 3) Try <media:thumbnail>
+  let thumb = item.getElementsByTagName("media:thumbnail");
+  if (thumb && thumb.length > 0 && thumb[0].getAttribute("url")) {
+    return thumb[0].getAttribute("url");
+  }
+
+  // 4) Try <image>
+  let img = item.getElementsByTagName("image");
+  if (img && img.length > 0 && img[0].textContent) {
+    return img[0].textContent;
+  }
+
+  // 5) Try inside <content:encoded> HTML
+  let content = item.getElementsByTagName("content:encoded");
+  if (content && content.length > 0) {
+    const html = content[0].textContent;
+    const match = html.match(/<img[^>]+src="([^">]+)"/i);
+    if (match) return match[1];
+  }
+
+  // 6) Try inside <description> HTML
+  let desc = item.getElementsByTagName("description");
+  if (desc && desc.length > 0) {
+    const html = desc[0].textContent;
+    const match = html.match(/<img[^>]+src="([^">]+)"/i);
+    if (match) return match[1];
+  }
+
+  // No image found → return fallback
+  return "/placeholder.jpg";
+}
+
 
     const parseRSS = (xmlText, sourceName) => {
       const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
