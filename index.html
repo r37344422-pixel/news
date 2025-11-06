@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trending News — Auto Updates</title>
+  <meta name="description" content="Mixed trending news that auto-updates from multiple RSS sources. No posting needed." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    /* Smooth ticker */
+    .ticker-content { will-change: transform; }
+    /* Card hover */
+    .news-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,.08); }
+    /* Clamp lines */
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  </style>
+</head>
+<body class="bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+  <!-- Top Bar -->
+  <header class="sticky top-0 z-50 border-b border-zinc-200/70 dark:border-zinc-800/60 backdrop-blur bg-white/70 dark:bg-zinc-950/50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white font-bold">TN</span>
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Trending News</h1>
+      </div>
+      <div class="ml-auto flex items-center gap-3">
+        <div class="hidden sm:flex items-center text-xs sm:text-sm text-zinc-500 dark:text-zinc-400" id="lastUpdated">Fetching…</div>
+        <button id="refreshBtn" class="px-3 py-1.5 rounded-xl text-sm font-medium bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 active:opacity-80">Refresh</button>
+      </div>
+    </div>
+    <!-- Breaking Ticker -->
+    <div class="border-t border-zinc-200/70 dark:border-zinc-800/60 bg-red-600 text-white">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center gap-3 overflow-hidden">
+        <span class="text-xs sm:text-sm font-semibold uppercase tracking-wider bg-white/20 rounded-md px-2 py-1">Breaking</span>
+        <div class="relative flex-1 h-6 sm:h-7 overflow-hidden">
+          <div id="ticker" class="ticker-content absolute inset-0 whitespace-nowrap flex items-center gap-8 will-change-transform"></div>
+        </div>
+        <div class="text-xs/none opacity-90" id="clock"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Controls -->
+    <div class="flex flex-col sm:flex-row gap-3 sm:items-center mb-6">
+      <input id="search" type="search" placeholder="Search headlines…" class="flex-1 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-2.5 outline-none focus:ring-4 ring-red-500/10" />
+      <div class="flex gap-2 flex-wrap" id="filters">
+        <!-- Filters populated by JS -->
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+    <!-- Footer -->
+    <p class="mt-8 text-xs text-zinc-500 dark:text-zinc-400">Auto-updated from multiple public RSS feeds. Headlines may link to external sites. This is a demo; for production, add your own serverless proxy (example worker provided in code comments).</p>
+  </main>
+
+  <script>
+    // -------------------- CONFIG --------------------
+    const RSS_SOURCES = [
+      // India / General
+      { name: 'NDTV', url: 'https://feeds.feedburner.com/ndtvnews-top-stories' },
+      { name: 'India Today', url: 'https://www.indiatoday.in/rss/home' },
+      { name: 'Hindustan Times', url: 'https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml' },
+      // Tech & Startups
+      { name: 'TechCrunch', url: 'https://techcrunch.com/feed/' },
+      { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml' },
+      // Entertainment
+      { name: 'Bollywood Hungama', url: 'https://www.bollywoodhungama.com/rss/bollywood-news.xml' },
+      { name: 'IGN Entertainment', url: 'https://in.ign.com/feed.xml' },
+      // Sports
+      { name: 'ESPN Cricinfo', url: 'https://www.espncricinfo.com/rss/content/story/feeds/0.xml' },
+      // Global / Mixed
+      { name: 'BBC World', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
+      { name: 'Reuters', url: 'https://feeds.reuters.com/reuters/INtopNews' }
+    ];
+
+    // Public CORS helper (good for prototyping). For production, use your own proxy.
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // mirrors content with permissive CORS
+
+    // Refresh timing
+    const UI_TICK_INTERVAL_MS = 1000;       // Update ticker/clock every 1s
+    const FEED_REFRESH_MS = 120 * 1000;     // Re-fetch feeds every 2 minutes
+
+    // -------------------- STATE --------------------
+    let allItems = [];    // merged items
+    let filteredItems = [];
+    let activeSource = 'All';
+    let tickerIndex = 0;
+
+    // -------------------- UTILITIES --------------------
+    const fmtTime = (d) => d.toLocaleTimeString('en-IN', { hour12: false });
+    const fmtAgo = (date) => {
+      if (!date) return '';
+      const diff = Date.now() - date.getTime();
+      const secs = Math.max(1, Math.floor(diff / 1000));
+      if (secs < 60) return `${secs}s ago`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      return `${hrs}h ago`;
+    };
+
+    const parseRSS = (xmlText, sourceName) => {
+      const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+      // Try RSS 2.0 <item>
+      const items = [...doc.querySelectorAll('item')].map(n => ({
+        title: n.querySelector('title')?.textContent?.trim() || '',
+        link: n.querySelector('link')?.textContent?.trim() || n.querySelector('guid')?.textContent?.trim() || '#',
+        pubDate: new Date(n.querySelector('pubDate')?.textContent || n.querySelector('dc\\:date')?.textContent || Date.now()),
+        source: sourceName,
+      }));
+      // If Atom
+      if (!items.length) {
+        return [...doc.querySelectorAll('entry')].map(n => ({
+          title: n.querySelector('title')?.textContent?.trim() || '',
+          link: n.querySelector('link')?.getAttribute('href') || '#',
+          pubDate: new Date(n.querySelector('updated')?.textContent || n.querySelector('published')?.textContent || Date.now()),
+          source: sourceName,
+        }));
+      }
+      return items;
+    };
+
+    const dedupe = (arr) => {
+      const seen = new Set();
+      return arr.filter(it => {
+        const key = (it.title + '|' + it.link).toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key); return true;
+      });
+    };
+
+    const sortByDateDesc = (arr) => arr.sort((a,b) => b.pubDate - a.pubDate);
+
+    // -------------------- FETCH LOGIC --------------------
+    async function fetchSingleFeed(src) {
+      try {
+        const res = await fetch(CORS_PROXY + encodeURIComponent(src.url));
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        const xml = await res.text();
+        return parseRSS(xml, src.name);
+      } catch (err) {
+        console.warn('Feed error:', src.name, err);
+        return [];
+      }
+    }
+
+    async function refreshFeeds() {
+      document.getElementById('lastUpdated').textContent = 'Fetching…';
+      const results = await Promise.all(RSS_SOURCES.map(fetchSingleFeed));
+      const merged = results.flat();
+      allItems = sortByDateDesc(dedupe(merged)).slice(0, 180); // cap size
+      applyFilter();
+      const t = new Date();
+      document.getElementById('lastUpdated').textContent = 'Updated at ' + fmtTime(t) + ' IST • ' + allItems.length + ' headlines';
+      // Rebuild ticker list
+      buildTicker();
+    }
+
+    // -------------------- UI RENDER --------------------
+    function buildFilters() {
+      const filtersEl = document.getElementById('filters');
+      filtersEl.innerHTML = '';
+      const sources = ['All', ...new Set(RSS_SOURCES.map(s => s.name))];
+      sources.forEach(src => {
+        const btn = document.createElement('button');
+        btn.textContent = src;
+        btn.className = 'px-3 py-1.5 rounded-xl text-sm border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 ' + (activeSource===src ? 'ring-2 ring-red-500/30' : '');
+        btn.addEventListener('click', () => { activeSource = src; applyFilter(); buildTicker(); });
+        filtersEl.appendChild(btn);
+      });
+    }
+
+    function applyFilter() {
+      const q = document.getElementById('search').value.trim().toLowerCase();
+      filteredItems = allItems.filter(it => (activeSource==='All' || it.source===activeSource) && (q==='' || it.title.toLowerCase().includes(q)));
+      renderGrid();
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      filteredItems.slice(0, 36).forEach(item => {
+        const a = document.createElement('a');
+        a.href = item.link; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.className = 'news-card block rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 transition-transform';
+        a.innerHTML = `
+          <div class="text-xs text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-2">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-100 dark:border-red-900/40">${item.source}</span>
+            <span>${fmtAgo(item.pubDate)}</span>
+          </div>
+          <h3 class="font-semibold text-base sm:text-lg line-clamp-2">${escapeHtml(item.title)}</h3>
+        `;
+        grid.appendChild(a);
+      });
+    }
+
+    function buildTicker() {
+      const ticker = document.getElementById('ticker');
+      ticker.innerHTML = '';
+      const list = (filteredItems.length ? filteredItems : allItems).slice(0, 40);
+      list.forEach(it => {
+        const el = document.createElement('a');
+        el.href = it.link; el.target = '_blank'; el.rel = 'noopener noreferrer';
+        el.className = 'shrink-0 text-sm hover:underline';
+        el.textContent = `• ${it.title}`;
+        ticker.appendChild(el);
+      });
+      tickerIndex = 0; // reset
+    }
+
+    function animateTicker() {
+      const ticker = document.getElementById('ticker');
+      const children = ticker.children;
+      if (!children.length) return;
+      tickerIndex = (tickerIndex + 1) % children.length;
+      // Scroll by moving first child to the end (no layout thrash)
+      ticker.appendChild(children[0]);
+    }
+
+    function startClock() {
+      const clockEl = document.getElementById('clock');
+      setInterval(() => { clockEl.textContent = fmtTime(new Date()); }, 1000);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"]g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+    }
+
+    // -------------------- EVENTS --------------------
+    document.getElementById('refreshBtn').addEventListener('click', refreshFeeds);
+    document.getElementById('search').addEventListener('input', () => { applyFilter(); buildTicker(); });
+
+    // -------------------- BOOT --------------------
+    (async function init(){
+      buildFilters();
+      startClock();
+      await refreshFeeds();
+      setInterval(refreshFeeds, FEED_REFRESH_MS);
+      setInterval(animateTicker, UI_TICK_INTERVAL_MS); // every 1s move headline
+    })();
+  </script>
+
+  <!--
+  =================== PRODUCTION NOTE ===================
+  Using a public CORS proxy (api.allorigins.win) is perfect for demos, but you
+  should add your OWN tiny proxy to avoid rate-limits. Example Cloudflare Worker:
+
+  export default {
+    async fetch(request) {
+      const { searchParams } = new URL(request.url);
+      const url = searchParams.get('url');
+      if (!url) return new Response('missing url', { status: 400 });
+      const res = await fetch(url, { headers: { 'User-Agent': 'NewsAggregator/1.0' }});
+      const text = await res.text();
+      return new Response(text, { headers: { 'Content-Type': 'application/rss+xml', 'Access-Control-Allow-Origin': '*' } });
+    }
+  };
+
+  Then call: fetch('https://<your-worker>.workers.dev/?url=' + encodeURIComponent(feedUrl))
+
+  =======================================================
+  -->
+</body>
+</html>
