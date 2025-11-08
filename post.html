@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loading… • Trending News</title>
+  <meta name="description" content="Read the full story on Trending News." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body { background: linear-gradient(135deg, #0f0f0f, #1a1a1a); font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:#fff; }
+    .glass { backdrop-filter: blur(30px); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 1rem; }
+    .prose p { margin: .75rem 0; line-height: 1.7; }
+    .btn { backdrop-filter: blur(30px); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: .75rem; padding:.6rem .9rem; }
+    .btn:hover { background: rgba(255,255,255,0.16); }
+  </style>
+  <!-- Default OG/Twitter fallback -->
+  <meta property="og:title" content="Trending News — Read Latest Story">
+  <meta property="og:description" content="Read the full breaking news story.">
+  <meta property="og:image" content="https://news-rouge-beta.vercel.app/default-og.jpg">
+  <meta property="og:url" content="https://news-rouge-beta.vercel.app">
+  <meta property="og:type" content="article">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Trending News — Read Latest Story">
+  <meta name="twitter:description" content="Full article available on Trending News.">
+  <meta name="twitter:image" content="https://news-rouge-beta.vercel.app/default-og.jpg">
+</head>
+<body>
+  <!-- Header -->
+  <header class="glass sticky top-0 z-50 mx-3 mt-3">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+      <a href="index.html" class="inline-flex items-center gap-2 btn">
+        <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-red-600 text-white text-xs font-bold">TN</span>
+        <span class="text-sm">Back to Home</span>
+      </a>
+      <div class="ml-auto flex items-center gap-2 text-xs text-zinc-300" id="metaBar">Loading…</div>
+    </div>
+  </header>
+
+  <!-- Article -->
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <article id="article" class="glass p-6 md:p-8">
+      <div id="head">
+        <h1 id="title" class="text-3xl md:text-4xl font-extrabold tracking-tight">Loading…</h1>
+        <div class="mt-3 text-sm text-zinc-300 flex flex-wrap items-center gap-3">
+          <span id="source" class="inline-flex items-center px-3 py-1 rounded-md bg-red-600/80 text-white border border-red-500/40">Source</span>
+          <span id="date">—</span>
+        </div>
+      </div>
+      <div id="heroWrap" class="mt-6 hidden">
+        <img id="image" class="w-full rounded-2xl shadow-2xl" alt="Article image" />
+      </div>
+      <div class="mt-8 prose prose-invert max-w-none" id="summaryWrap">
+        <p id="summary" class="text-zinc-200 text-lg"><em>Summary coming soon.</em></p>
+      </div>
+
+      <!-- Actions -->
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a id="openOriginal" target="_blank" rel="noopener noreferrer" class="btn inline-flex items-center gap-2"><span>Open original</span>↗</a>
+        <button id="shareBtn" class="btn">Share</button>
+        <button id="copyBtn" class="btn">Copy link</button>
+      </div>
+    </article>
+
+    <!-- Related -->
+    <section class="mt-10">
+      <h3 class="text-xl font-bold mb-4">Related Articles</h3>
+      <div id="related" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>
+  </main>
+
+  <script>
+    // --- Firebase ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBbXqP8P7mBJMUav0KB7bID_MQBBTAmsd4",
+      authDomain: "trending-news-8d416.firebaseapp.com",
+      databaseURL: "https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "trending-news-8d416",
+      storageBucket: "trending-news-8d416.appspot.com",
+      messagingSenderId: "145845736609",
+      appId: "1:145845736609:web:fc93f283ac147168f44ce0"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // --- Helpers ---
+    const $ = (id) => document.getElementById(id);
+    function q(name){ return new URLSearchParams(location.search).get(name); }
+    function fmtDate(ms){ try { return new Date(Number(ms)).toLocaleString('en-IN'); } catch { return ''; } }
+
+    async function getItem(id){ const snap = await db.ref('items/'+id).get(); return snap.val(); }
+    async function getLatest(limit=6){ const snap = await db.ref('items').orderByChild('pubDate').limitToLast(60).get(); const v = snap.val()||{}; return Object.values(v).sort((a,b)=>b.pubDate-a.pubDate).slice(0,limit); }
+
+    function updateHeadTags(item){
+      document.title = item.title + " • Trending News";
+
+      const set = (selector, value, attr = "content") => {
+        const el = document.querySelector(selector);
+        if (el) el.setAttribute(attr, value);
+      };
+
+      // Basic SEO
+      set('meta[name="description"]', item.title);
+
+      // OG tags
+      set('meta[property="og:title"]', item.title);
+      set('meta[property="og:description"]', item.summary || item.title);
+      set('meta[property="og:image"]', item.image || "https://news-rouge-beta.vercel.app/default-og.jpg");
+      set('meta[property="og:url"]', location.href);
+
+      // Twitter tags
+      set('meta[name="twitter:title"]', item.title);
+      set('meta[name="twitter:description"]', item.summary || item.title);
+      set('meta[name="twitter:image"]', item.image || "https://news-rouge-beta.vercel.app/default-og.jpg");
+    }
+
+    function renderItem(item){
+      $('title').textContent = item.title;
+      $('source').textContent = item.source || 'Unknown';
+      $('date').textContent = fmtDate(item.pubDate);
+      if(item.image){ $('image').src = item.image; $('heroWrap').classList.remove('hidden'); }
+      $('summary').textContent = item.summary || '—';
+      $('openOriginal').href = item.link;
+      $('metaBar').textContent = (item.source||'') + ' • ' + fmtDate(item.pubDate);
+      updateHeadTags(item);
+    }
+
+    function renderRelated(currentId){
+      const wrap = $('related');
+      wrap.innerHTML = '';
+      getLatest(9).then(list => {
+        list.filter(x=>x.id!==currentId).slice(0,6).forEach(x => {
+          const a = document.createElement('a');
+          a.href = `post.html?id=${x.id}`;
+          a.className = 'glass p-4 block hover:translate-y-[-2px] transition';
+          a.innerHTML = `<div class="text-xs text-zinc-300 mb-2">${x.source||''}</div><div class="font-semibold">${x.title}</div>`;
+          wrap.appendChild(a);
+        });
+      });
+    }
+
+    // --- Share / Copy ---
+    $('shareBtn').addEventListener('click', async () => {
+      try {
+        await navigator.share({ title: document.title, text: $('title').textContent, url: location.href });
+      } catch {}
+    });
+    $('copyBtn').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(location.href); $('copyBtn').textContent = 'Copied!'; setTimeout(()=> $('copyBtn').textContent='Copy link', 1500); } catch {}
+    });
+
+    // --- Boot ---
+    (async function(){
+      const id = q('id');
+      if(!id){ document.getElementById('article').innerHTML = `<div class="p-8 text-center">❌ Invalid article</div>`; return; }
+      const item = await getItem(id);
+      if(!item){ document.getElementById('article').innerHTML = `<div class="p-8 text-center">❌ Article not found</div>`; return; }
+      renderItem(item);
+      renderRelated(id);
+    })();
+  </script>
+</body>
+</html>

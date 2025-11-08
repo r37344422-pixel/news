@@ -3,501 +3,107 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trending News — Auto Updates + Archive</title>
-  <meta name="description" content="Mixed trending news that auto-updates from multiple RSS sources. Auto-saves to Firebase. No posting needed." />
+  <title>Trending News — Latest Headlines</title>
+  <meta name="description" content="Trending News — Auto-updated headlines from multiple sources. Click any article to open full detail page." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%); }
-    .ticker-content { will-change: transform; }
-    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .container-narrow { max-width: 840px; }
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 
-    /* Enhanced Glassmorphism Styles */
-    .glass-header {
-      backdrop-filter: blur(30px);
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 1rem;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      margin: 0.5rem;
-    }
-    .glass-ticker {
-      backdrop-filter: blur(30px);
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.5rem;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
+      font-family: Inter, sans-serif;
+      color: #fff;
     }
     .glass-card {
       backdrop-filter: blur(30px);
       background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 1rem;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      transition: all 0.4s ease;
+      transition: .3s;
+      padding: 1rem;
     }
     .glass-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 59, 59, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      transform: translateY(-6px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.45);
     }
-    .glass-input {
-      backdrop-filter: blur(30px);
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.75rem;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      transition: all 0.3s ease;
-    }
-    .glass-input:focus {
-      box-shadow: 0 0 0 3px rgba(255, 59, 59, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-    .glass-button {
-      backdrop-filter: blur(30px);
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.75rem;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      transition: all 0.3s ease;
-    }
-    .glass-button:hover {
-      background: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-    .glass-button.active {
-      box-shadow: 0 0 0 3px rgba(255, 59, 59, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-    .glass-article {
-      backdrop-filter: blur(30px);
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+    .glass-header {
+      backdrop-filter: blur(25px);
+      background: rgba(255, 255, 255, 0.08);
       border-radius: 1rem;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    }
-    .glow-red {
-      text-shadow: 0 0 20px rgba(255, 59, 59, 1);
+      margin: 1rem;
+      border: 1px solid rgba(255,255,255,0.1);
     }
   </style>
-  <!-- Firebase SDKs (Compat for simplicity) -->
-  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 </head>
-<body class="text-zinc-100">
-  <!-- Top Bar -->
-  <header class="sticky top-0 z-50 glass-header">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
-      <a href="#/" class="flex items-center gap-2">
-        <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-red-600 text-white font-bold shadow-lg">TN</span>
-        <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Trending News</h1>
+
+<body>
+  <header class="glass-header sticky top-0 z-50">
+    <div class="flex items-center justify-between p-4">
+      <a href="index.html" class="flex items-center gap-2">
+        <span class="h-8 w-8 flex items-center justify-center rounded-xl bg-red-600 text-white font-bold shadow-lg">TN</span>
+        <h1 class="text-xl font-bold">Trending News</h1>
       </a>
-      <div class="ml-auto flex items-center gap-3">
-        <div class="hidden sm:flex items-center text-xs sm:text-sm text-zinc-300" id="lastUpdated">Fetching…</div>
-        <button id="refreshBtn" class="glass-button px-4 py-2 rounded-xl text-sm font-medium text-zinc-100 hover:opacity-90 active:opacity-80">Refresh</button>
-      </div>
-    </div>
-    <!-- Breaking Ticker -->
-    <div class="glass-ticker bg-red-600 text-white mx-4 mb-2">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 overflow-hidden">
-        <span class="text-xs sm:text-sm font-semibold uppercase tracking-wider bg-white/20 rounded-md px-3 py-1 shadow-md">Breaking</span>
-        <div class="relative flex-1 h-6 sm:h-7 overflow-hidden">
-          <div id="ticker" class="ticker-content absolute inset-0 whitespace-nowrap flex items-center gap-8 will-change-transform glow-red"></div>
-        </div>
-        <div class="text-xs/none opacity-90 font-mono" id="clock"></div>
-      </div>
+      <button id="refreshBtn" class="px-4 py-2 rounded-xl bg-white/10 border border-white/20">Refresh</button>
     </div>
   </header>
 
-  <main id="routerView" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <!-- Home/List view injected here -->
+  <main class="max-w-7xl mx-auto px-4 py-8">
+    <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
   </main>
 
   <script>
-    // -------------------- CONFIG --------------------
-    const RSS_SOURCES = [
-      { name: 'NDTV', url: 'https://feeds.feedburner.com/ndtvnews-top-stories' },
-      { name: 'India Today', url: 'https://www.indiatoday.in/rss/home' },
-      { name: 'Hindustan Times', url: 'https://www.hindustantimes.com/feeds/rss/india-news/rssfeed.xml' },
-      { name: 'TechCrunch', url: 'https://techcrunch.com/feed/' },
-      { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml' },
-      { name: 'Bollywood Hungama', url: 'https://www.bollywoodhungama.com/rss/bollywood-news.xml' },
-      { name: 'IGN Entertainment', url: 'https://in.ign.com/feed.xml' },
-      { name: 'ESPN Cricinfo', url: 'https://www.espncricinfo.com/rss/content/story/feeds/0.xml' },
-      { name: 'BBC World', url: 'https://feeds.bbci.co.uk/news/world/rss.xml' },
-      { name: 'Reuters', url: 'https://feeds.reuters.com/reuters/INtopNews' }
-    ];
+    // ✅ Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBbXqP8P7mBJMUav0KB7bID_MQBBTAmsd4",
+      authDomain: "trending-news-8d416.firebaseapp.com",
+      databaseURL: "https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "trending-news-8d416",
+      storageBucket: "trending-news-8d416.appspot.com",
+      messagingSenderId: "145845736609",
+      appId: "1:145845736609:web:fc93f283ac147168f44ce0"
+    };
 
-    // Replace with your Cloudflare Worker proxy
-    const CORS_PROXY = 'https://spring-glitter-32d6.r37344422.workers.dev/?url=';
-
-    // Firebase config —> FILL WITH YOUR KEYS (Firebase Console > Project settings > SDK setup & config)
-     firebaseConfig = {
-  apiKey: "AIzaSyBbXqP8P7mBJMUav0KB7bID_MQBBTAmsd4",
-  authDomain: "trending-news-8d416.firebaseapp.com",
-  databaseURL: "https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "trending-news-8d416",
-  storageBucket: "trending-news-8d416.appspot.com",
-  messagingSenderId: "145845736609",
-  appId: "1:145845736609:web:fc93f283ac147168f44ce0"
-};
-
-   
-
-    // Refresh timing
-    const UI_TICK_INTERVAL_MS = 1000;       // Update ticker/clock every 1s
-    const FEED_REFRESH_MS = 120 * 1000;     // Re-fetch feeds every 2 minutes
-
-    // -------------------- STATE --------------------
-    let allItems = [];    // merged latest fetched items (in-memory)
-    let filteredItems = [];
-    let activeSource = 'All';
-    let tickerIndex = 0;
-
-    // -------------------- FIREBASE --------------------
-    const app = firebase.initializeApp(firebaseConfig);
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // Save an item to DB if it doesn't exist
-    async function saveItemToDB(item) {
-      const ref = db.ref('items/' + item.id);
-      const snap = await ref.get();
-      if (!snap.exists()) {
-        const updates = {};
-        updates['items/' + item.id] = item;
-        const day = new Date(item.pubDate).toISOString().slice(0,10).replaceAll('-','');
-        updates['byDate/' + day + '/' + item.id] = true;
-        await db.ref().update(updates).catch(()=>{});
-      }
-    }
-
-    // Listen latest items from DB for Home view
     function subscribeLatest(callback) {
-      // Get last ~200 by time
       const ref = db.ref('items').orderByChild('pubDate').limitToLast(200);
-      ref.on('value', (snap) => {
+      ref.on('value', snap => {
         const val = snap.val() || {};
-        const arr = Object.values(val).sort((a,b)=>b.pubDate - a.pubDate);
+        const arr = Object.values(val).sort((a, b) => b.pubDate - a.pubDate);
         callback(arr);
       });
-      return () => ref.off();
     }
 
-    // Get one item for Post view
-    async function getItem(id) {
-      const snap = await db.ref('items/' + id).get();
-      return snap.val();
-    }
-
-    // -------------------- UTILITIES --------------------
-    const fmtTime = (d) => d.toLocaleTimeString('en-IN', { hour12: false });
-    const fmtAgo = (date) => {
-      if (!date) return '';
-      const diff = Date.now() - new Date(date).getTime();
-      const secs = Math.max(1, Math.floor(diff / 1000));
-      if (secs < 60) return `${secs}s ago`;
-      const mins = Math.floor(secs / 60);
-      if (mins < 60) return `${mins}m ago`;
-      const hrs = Math.floor(mins / 60);
-      return `${hrs}h ago`;
-    };
-
-    const hashId = (str) => {
-      let h = 0; for (let i=0;i<str.length;i++){ h = ((h<<5)-h) + str.charCodeAt(i); h |= 0; }
-      return Math.abs(h).toString(36);
-    };
-
-    const escapeHtml = (str) => (str || '').replace(/[&<>"]/g, m => ({'&':'&amp;','<':'<','>':'>','"':'"'}[m]));
-
-    // Extract image from common RSS fields
-    function extractImage(item) {
-  // 1) Try <media:content>
-  let media = item.getElementsByTagName("media:content");
-  if (media && media.length > 0 && media[0].getAttribute("url")) {
-    return media[0].getAttribute("url");
-  }
-
-  // 2) Try <enclosure>
-  let enc = item.getElementsByTagName("enclosure");
-  if (enc && enc.length > 0 && enc[0].getAttribute("url")) {
-    return enc[0].getAttribute("url");
-  }
-
-  // 3) Try <media:thumbnail>
-  let thumb = item.getElementsByTagName("media:thumbnail");
-  if (thumb && thumb.length > 0 && thumb[0].getAttribute("url")) {
-    return thumb[0].getAttribute("url");
-  }
-
-  // 4) Try <image>
-  let img = item.getElementsByTagName("image");
-  if (img && img.length > 0 && img[0].textContent) {
-    return img[0].textContent;
-  }
-
-  // 5) Try inside <content:encoded> HTML
-  let content = item.getElementsByTagName("content:encoded");
-  if (content && content.length > 0) {
-    const html = content[0].textContent;
-    const match = html.match(/<img[^>]+src="([^">]+)"/i);
-    if (match) return match[1];
-  }
-
-  // 6) Try inside <description> HTML
-  let desc = item.getElementsByTagName("description");
-  if (desc && desc.length > 0) {
-    const html = desc[0].textContent;
-    const match = html.match(/<img[^>]+src="([^">]+)"/i);
-    if (match) return match[1];
-  }
-
-  // No image found → return fallback
-  return "/placeholder.jpg";
-}
-
-
-const parseRSS = (xmlText, sourceName) => {
-  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
-
-  let items = [...doc.querySelectorAll("item")].map(n => ({
-    title: n.querySelector("title")?.textContent?.trim() || "",
-    link: n.querySelector("link")?.textContent?.trim() || "",
-    pubDate: new Date(n.querySelector("pubDate")?.textContent || Date.now()).getTime(),
-    source: sourceName,
-    image: extractImage(n),
-
-    // ✅ FIXED FULL ARTICLE SUMMARY
-    summary:
-      (n.getElementsByTagName("content:encoded")[0]?.textContent?.trim() ||
-      n.getElementsByTagName("description")[0]?.textContent?.trim() ||
-      "")
-  }));
-
-  // ✅ If no <item>, try <entry> (ATOM feeds)
-  if (!items.length) {
-    items = [...doc.querySelectorAll("entry")].map(n => ({
-      title: n.querySelector("title")?.textContent?.trim() || "",
-      link: n.querySelector("link")?.getAttribute("href") || "",
-      pubDate: new Date(n.querySelector("updated")?.textContent || Date.now()).getTime(),
-      source: sourceName,
-      image: extractImage(n),
-
-      summary:
-        (n.getElementsByTagName("content")[0]?.textContent?.trim() ||
-        n.getElementsByTagName("summary")[0]?.textContent?.trim() ||
-        "")
-    }));
-  }
-
-  return items.filter(i => i.title && i.link);
-};
-
-
-    const dedupe = (arr) => {
-      const seen = new Set();
-      return arr.filter(it => { const k = (it.title + '|' + it.link).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-    };
-
-    const sortByDateDesc = (arr) => arr.sort((a,b) => b.pubDate - a.pubDate);
-
-    // -------------------- FETCH LOGIC --------------------
-    async function fetchSingleFeed(src) {
-      try {
-        const res = await fetch(CORS_PROXY + encodeURIComponent(src.url));
-        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-        const xml = await res.text();
-        return parseRSS(xml, src.name);
-      } catch (err) {
-        console.warn('Feed error:', src.name, err);
-        return [];
-      }
-    }
-
-    async function refreshFeeds() {
-      document.getElementById('lastUpdated').textContent = 'Fetching…';
-      const results = await Promise.all(RSS_SOURCES.map(fetchSingleFeed));
-      const merged = results.flat();
-      allItems = sortByDateDesc(dedupe(merged)).slice(0, 250);
-      // Save to DB in background
-      allItems.forEach(saveItemToDB);
-      const t = new Date();
-      document.getElementById('lastUpdated').textContent = 'Updated at ' + fmtTime(t) + ' IST • ' + allItems.length + ' headlines';
-      buildTicker();
-    }
-
-    // -------------------- ROUTER --------------------
-    window.addEventListener('hashchange', renderRoute);
-
-    function renderRoute(){
-      const hash = location.hash || '#/';
-      if (hash.startsWith('#/post/')) {
-        const id = hash.split('/').pop();
-        renderPost(id);
-      } else {
-        renderHome();
-      }
-    }
-
-    // -------------------- HOME (LIST) VIEW --------------------
-    let unsubscribe = null;
-    function renderHome(){
-      const root = document.getElementById('routerView');
-      root.innerHTML = `
-        <div class="flex flex-col sm:flex-row gap-4 sm:items-center mb-8">
-          <input id="search" type="search" placeholder="Search headlines…" class="glass-input flex-1 px-5 py-3 outline-none text-zinc-100 placeholder-zinc-400" />
-          <div class="flex gap-3 flex-wrap" id="filters"></div>
-        </div>
-        <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-        <p class="mt-10 text-xs text-zinc-400 text-center">Auto-updated & archived in Firebase. Headlines aggregated from public RSS feeds. For demo only.</p>
-      `;
-      buildFilters();
-      document.getElementById('search').addEventListener('input', ()=>{ applyFilter(); buildTicker(); });
-      if (unsubscribe) unsubscribe();
-      unsubscribe = subscribeLatest((arr)=>{ allItems = arr; applyFilter(); buildTicker(); });
-    }
-
-    function buildFilters() {
-      const filtersEl = document.getElementById('filters');
-      if (!filtersEl) return;
-      filtersEl.innerHTML = '';
-      const sources = ['All', ...new Set(RSS_SOURCES.map(s => s.name))];
-      sources.forEach(src => {
-        const btn = document.createElement('button');
-        btn.textContent = src;
-        btn.className = 'glass-button px-4 py-2 rounded-xl text-sm font-medium ' + (activeSource===src ? 'active text-red-300' : 'text-zinc-100');
-        btn.addEventListener('click', () => { activeSource = src; applyFilter(); buildTicker(); });
-        filtersEl.appendChild(btn);
-      });
-    }
-
-    function applyFilter() {
-      const qEl = document.getElementById('search');
-      const q = (qEl?.value || '').trim().toLowerCase();
-      filteredItems = (allItems||[]).filter(it => (activeSource==='All' || it.source===activeSource) && (q==='' || (it.title||'').toLowerCase().includes(q)));
-      renderGrid();
-    }
-
-    function renderGrid() {
+    // ✅ Render Home Grid
+    function renderHome() {
       const grid = document.getElementById('grid');
-      if (!grid) return;
-      grid.innerHTML = '';
-      filteredItems.slice(0, 60).forEach(item => {
-        const card = document.createElement('a');
-        card.href = `#/post/${item.id}`; // internal route
-        card.className = 'glass-card block p-6 transition-transform';
-        const img = item.image ? `<img src="${escapeHtml(item.image)}" alt="" class="w-full h-48 object-cover rounded-xl mb-4 shadow-lg">` : '';
-        card.innerHTML = `
-          <div class="text-xs text-zinc-300 mb-3 flex items-center gap-3">
-            <span class="inline-flex items-center px-3 py-1 rounded-md bg-red-600/80 text-white border border-red-500/50 shadow-sm">${escapeHtml(item.source)}</span>
-            <span class="font-medium">${fmtAgo(item.pubDate)}</span>
-          </div>
-          ${img}
-          <h3 class="font-bold text-lg leading-tight line-clamp-2 text-zinc-100">${escapeHtml(item.title)}</h3>
-        `;
-        grid.appendChild(card);
+      subscribeLatest(items => {
+        grid.innerHTML = '';
+        items.slice(0, 60).forEach(item => {
+          const card = document.createElement('a');
+          card.href = `post.html?id=${item.id}`;
+          card.className = 'glass-card block';
+
+          card.innerHTML = `
+            <div class="text-xs text-zinc-300 mb-2">${item.source}</div>
+            <h3 class="font-bold text-lg mb-3">${item.title}</h3>
+            ${item.image ? `<img src="${item.image}" class="rounded-xl shadow-lg">` : ''}
+          `;
+
+          grid.appendChild(card);
+        });
       });
     }
 
-    function buildTicker() {
-      const ticker = document.getElementById('ticker');
-      if (!ticker) return;
-      ticker.innerHTML = '';
-      const list = (filteredItems.length ? filteredItems : allItems).slice(0, 40);
-      list.forEach(it => {
-        const el = document.createElement('a');
-        el.href = `#/post/${it.id}`;
-        el.className = 'shrink-0 text-sm hover:underline font-medium';
-        el.textContent = `• ${it.title}`;
-        ticker.appendChild(el);
-      });
-      tickerIndex = 0;
-    }
+    document.getElementById('refreshBtn').addEventListener('click', () => location.reload());
 
-    // -------------------- POST (DETAIL) VIEW --------------------
-    async function renderPost(id){
-      const item = await getItem(id);
-      const root = document.getElementById('routerView');
-      if (!item) {
-        root.innerHTML = `<div class="glass-article container-narrow mx-auto p-8 text-center">
-          <a href="#/" class="text-sm text-red-400 hover:text-red-300">← Back to news</a>
-          <h2 class="mt-6 text-3xl font-bold text-zinc-100">Not found</h2>
-          <p class="text-zinc-400 mt-4">This article may have expired from cache. Try refreshing feeds.</p>
-        </div>`;
-        return;
-      }
-      const dateStr = new Date(item.pubDate).toLocaleString('en-IN');
-      root.innerHTML = `
-        <article class="glass-article container-narrow mx-auto p-8">
-          <a href="#/" class="text-sm text-red-400 hover:text-red-300 mb-6 inline-block">← Back to latest</a>
-          <h1 class="text-4xl font-extrabold leading-tight text-zinc-100 mb-4">${escapeHtml(item.title)}</h1>
-          <div class="text-sm text-zinc-300 mb-6 flex items-center gap-4">
-            <span class="font-medium">${escapeHtml(item.source)}</span>
-            <span>•</span>
-            <span>${dateStr}</span>
-          </div>
-          ${item.image ? `<img src="${escapeHtml(item.image)}" alt="" class="w-full rounded-2xl mb-8 shadow-2xl">` : ''}
-          <div class="prose prose-lg dark:prose-invert max-w-none text-zinc-200 mb-10">
-            <p class="text-lg"><em>Summary coming soon.</em></p>
-            <p class="text-sm text-zinc-400 mt-6">Original source: <a class="underline text-red-400 hover:text-red-300" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">Open external link</a></p>
-          </div>
-
-          <div class="mt-12">
-            <h3 class="text-xl font-bold text-zinc-100 mb-6">Related Articles</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              ${(allItems||[]).filter(x=>x.id!==id).slice(0,6).map(x=>`
-                <a href="#/post/${x.id}" class="glass-button block p-4 rounded-xl text-sm text-zinc-100 hover:text-red-300 transition-colors">${escapeHtml(x.title)}</a>
-              `).join('')}
-            </div>
-          </div>
-        </article>
-      `;
-    }
-
-    // -------------------- TICKER + CLOCK --------------------
-    function animateTicker() {
-      const ticker = document.getElementById('ticker');
-      const children = ticker?.children || [];
-      if (!children.length) return;
-      ticker.appendChild(children[0]);
-    }
-
-    function startClock() {
-      const clockEl = document.getElementById('clock');
-      setInterval(() => { clockEl.textContent = fmtTime(new Date()); }, 1000);
-    }
-
-    // -------------------- EVENTS --------------------
-    document.getElementById('refreshBtn').addEventListener('click', refreshFeeds);
-
-    // -------------------- BOOT --------------------
-    (async function init(){
-      startClock();
-      await refreshFeeds(); // also archives to Firebase
-      setInterval(refreshFeeds, FEED_REFRESH_MS);
-      setInterval(animateTicker, UI_TICK_INTERVAL_MS);
-      renderRoute();
-    })();
+    // ✅ Boot
+    renderHome();
   </script>
-
-  <!--
-  =================== PRODUCTION NOTE ===================
-  1) Fill your Firebase config above. Then go to Firebase Console → Realtime Database → Rules and start with:
-
-  {
-    "rules": {
-      ".read": true,
-      ".write": true
-    }
-  }
-
-  (For public demo only. Later, restrict writes via Cloud Functions/auth.)
-
-  2) Optional security (recommended later): use Cloudflare Worker to fetch RSS (already used) and move write logic to a serverless endpoint.
-
-  3) Hash routing is used (/#/post/:id) so it works on static hosting like Vercel without server routes.
-
-  =======================================================
-  -->
 </body>
 </html>

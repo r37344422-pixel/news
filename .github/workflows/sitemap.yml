@@ -1,0 +1,35 @@
+name: Auto Generate Sitemap
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # Runs every 1 hour
+  workflow_dispatch:       # Allow manual run
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ✅ Checkout repo
+        uses: actions/checkout@v3
+
+      - name: ✅ Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: ✅ Install node-fetch
+        run: npm install node-fetch@2
+
+      - name: ✅ Generate sitemap
+        run: node sitemap.js
+
+      - name: ✅ Commit and Push sitemap.xml
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add sitemap.xml
+          git commit -m "Auto-update sitemap" || echo "No changes"
+          git push

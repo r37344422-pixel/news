@@ -1,45 +1,61 @@
-const fs = require("fs");
-const fetch = require("node-fetch");
+// Generate sitemap.xml for post.html?id=ID URLs
+// Run: node sitemap.js
+// Prereq: npm init -y && npm i node-fetch@2
 
-async function generateSitemap() {
-  const apiURL = "https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app/items.json";
+const fs = require('fs');
+const fetch = require('node-fetch');
 
-  console.log("⏳ Fetching news from Firebase...");
-  const res = await fetch(apiURL);
-  const data = await res.json();
+// CHANGE THIS TO YOUR DEPLOYED DOMAIN (no trailing slash)
+const SITE = 'https://news-rouge-beta.vercel.app';
 
-  let urls = "";
+// Firebase Realtime Database endpoint
+const API_URL = 'https://trending-news-8d416-default-rtdb.asia-southeast1.firebasedatabase.app/items.json';
 
-  for (let key in data) {
-    const item = data[key];
-
-    const finalUrl = `https://news-rouge-beta.vercel.app/post/${item.id}`;
-
-    urls += `
-<url>
-  <loc>${finalUrl}</loc>
-  <lastmod>${new Date(item.pubDate).toISOString()}</lastmod>
-  <changefreq>hourly</changefreq>
-  <priority>0.8</priority>
-</url>`;
+function isoFromPubDate(pubDate) {
+  // pubDate already stored as ms epoch in your DB
+  try {
+    const n = Number(pubDate);
+    return new Date(isNaN(n) ? pubDate : n).toISOString();
+  } catch {
+    return new Date().toISOString();
   }
-
-  const sitemapXML = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
-<url>
-  <loc>https://news-rouge-beta.vercel.app/</loc>
-  <lastmod>${new Date().toISOString()}</lastmod>
-  <changefreq>hourly</changefreq>
-  <priority>1.0</priority>
-</url>
-
-${urls}
-
-</urlset>`;
-
-  fs.writeFileSync("sitemap.xml", sitemapXML);
-  console.log("✅ Sitemap generated successfully: sitemap.xml");
 }
 
-generateSitemap();
+(async function generate() {
+  try {
+    console.log('⏳ Fetching items from Firebase...');
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+    const data = await res.json();
+
+    if (!data || typeof data !== 'object') {
+      throw new Error('No items found at Firebase endpoint');
+    }
+
+    // Build URL entries
+    let urls = '';
+    const items = Object.values(data)
+      .filter(Boolean)
+      .sort((a, b) => (b.pubDate || 0) - (a.pubDate || 0))
+      .slice(0, 1000); // sitemap best practice: cap to latest 1k
+
+    for (const item of items) {
+      const id = item.id || item.key || '';
+      if (!id) continue;
+      const loc = `${SITE}/post.html?id=${encodeURIComponent(id)}`;
+      const lastmod = isoFromPubDate(item.pubDate);
+      urls += `\n<url>\n  <loc>${loc}</loc>\n  <lastmod>${lastmod}</lastmod>\n  <changefreq>hourly</changefreq>\n  <priority>0.80</priority>\n</url>`;
+    }
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n\n` +
+`<url>\n  <loc>${SITE}/</loc>\n  <lastmod>${new Date().toISOString()}</lastmod>\n  <changefreq>hourly</changefreq>\n  <priority>1.00</priority>\n</url>` +
+`${urls}\n\n</urlset>\n`;
+
+    fs.writeFileSync('sitemap.xml', xml, 'utf8');
+    console.log('✅ sitemap.xml generated.');
+  } catch (e) {
+    console.error('❌ Failed to generate sitemap:', e.message);
+    process.exitCode = 1;
+  }
+})();
