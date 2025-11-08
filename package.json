@@ -1,0 +1,24 @@
+{
+  "name": "news-web",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sitemap.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/r37344422-pixel/news.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/r37344422-pixel/news/issues"
+  },
+  "homepage": "https://github.com/r37344422-pixel/news#readme",
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
+}
