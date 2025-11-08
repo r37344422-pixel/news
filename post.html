@@ -25,7 +25,6 @@
   <meta property="og:image" content="https://news-rouge-beta.vercel.app/default-og.jpg">
   <meta property="og:url" content="https://news-rouge-beta.vercel.app">
   <meta property="og:type" content="article">
-
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Trending News — Read Latest Story">
   <meta name="twitter:description" content="Full article available on Trending News.">
@@ -94,6 +93,15 @@
     function q(name){ return new URLSearchParams(location.search).get(name); }
     function fmtDate(ms){ try { return new Date(Number(ms)).toLocaleString('en-IN'); } catch { return ''; } }
 
+    // Sanitize HTML: remove scripts, iframes, styles, onerror
+    function sanitizeHTML(html) {
+      const temp = document.createElement('div');
+      temp.innerHTML = html;
+      const elements = temp.querySelectorAll('script, iframe, style, *[onerror]');
+      elements.forEach(el => el.remove());
+      return temp.innerHTML;
+    }
+
     async function getItem(id){ const snap = await db.ref('items/'+id).get(); return snap.val(); }
     async function getLatest(limit=6){ const snap = await db.ref('items').orderByChild('pubDate').limitToLast(60).get(); const v = snap.val()||{}; return Object.values(v).sort((a,b)=>b.pubDate-a.pubDate).slice(0,limit); }
 
@@ -125,7 +133,7 @@
       $('source').textContent = item.source || 'Unknown';
       $('date').textContent = fmtDate(item.pubDate);
       if(item.image){ $('image').src = item.image; $('heroWrap').classList.remove('hidden'); }
-      $('summary').textContent = item.summary || '—';
+      $('summary').innerHTML = sanitizeHTML(item.summary || '—');
       $('openOriginal').href = item.link;
       $('metaBar').textContent = (item.source||'') + ' • ' + fmtDate(item.pubDate);
       updateHeadTags(item);

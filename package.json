@@ -1,24 +1,13 @@
 {
-  "name": "news-web",
+  "name": "news-aggregator-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "sitemap.js",
+  "main": "rss-fetcher.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node rss-fetcher.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/r37344422-pixel/news.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/r37344422-pixel/news/issues"
-  },
-  "homepage": "https://github.com/r37344422-pixel/news#readme",
   "dependencies": {
-    "node-fetch": "^2.7.0"
+    "firebase-admin": "^11.0.0",
+    "xml2js": "^0.4.23",
+    "node-fetch": "^2.6.7"
   }
 }
